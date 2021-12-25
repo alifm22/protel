@@ -1,7 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="AppName">Telegram</string>
-    <string name="AppNameBeta">Telegram Beta</string>
+    <!--custom changes-->
+    <string name="SaveTo">Save to</string>
+    <string name="SaveToFolder">Save to Folder</string>
+    <string name="SaveToPdb">Save to PDB</string>
+    <string name="SaveToSdb">Save to SDB</string>
+    <string name="SaveToCdb">Save to CDB</string>
+    <string name="SaveToVdb">Save to VDB</string>
+    <string name="SaveToFdb">Save to FDB</string>
+    <string name="SaveToIdb">Save to IDB</string>
+    <string name="SaveToRdb">Save to RDB</string>
+    <string name="SaveToNdb">Save to NDB</string>
+    <string name="SaveToAdb">Save to ADB</string>
+    <string name="SaveToDdb">Save to DDB</string>
+    <string name="SaveToMdb">Save to MDB</string>
+    <string name="SaveToGdb">Save to GDB</string>
+    <string name="MusicPlayer">Music Player</string>
+    <string name="ComingSoon">Coming Soon...</string>
+    <string name="InputFolderTitle">Please input folder name:</string>
+    <string name="DeleteFolderTitle">Please select folders to delete:</string>
+
+    <!--end custom changes-->
+    <string name="AppName">ProTel</string>
+    <string name="AppNameBeta">ProTel</string>
     <string name="LanguageName">English</string>
     <string name="English">English</string>
     <string name="LanguageNameInEnglish">English</string>
@@ -2807,6 +2828,8 @@
     <string name="GifSavedToDownloadsHint">GIF saved to downloads</string>
     <string name="AudioSavedHint">File saved to music</string>
     <string name="FileSavedHint">File saved to downloads</string>
+    <string name="FolderSavedHint">Folder Created Successfully</string>
+    <string name="FolderDeleteHint">Folder(s) Deleted Successfully</string>
     <string name="FilesSavedHint_zero">%1$d files saved to downloads</string>
     <string name="FilesSavedHint_one">File saved to downloads</string>
     <string name="FilesSavedHint_two">%1$d files saved to downloads</string>

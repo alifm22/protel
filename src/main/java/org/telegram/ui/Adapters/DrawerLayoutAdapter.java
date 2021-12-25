@@ -243,6 +243,9 @@ public class DrawerLayoutAdapter extends RecyclerListView.SelectionAdapter {
         int contactsIcon;
         int callsIcon;
         int savedIcon;
+        //custom changes
+        int musicPlayerIcon = R.drawable.files_music;
+        //end custom changes
         int settingsIcon;
         int inviteIcon;
         int helpIcon;
@@ -301,6 +304,9 @@ public class DrawerLayoutAdapter extends RecyclerListView.SelectionAdapter {
             items.add(new Item(12, LocaleController.getString("PeopleNearby", R.string.PeopleNearby), peopleNearbyIcon));
         }
         items.add(new Item(11, LocaleController.getString("SavedMessages", R.string.SavedMessages), savedIcon));
+        //custom changes
+        items.add(new Item(50, LocaleController.getString("MusicPlayer", R.string.MusicPlayer), musicPlayerIcon));
+        //end custom changes
         items.add(new Item(8, LocaleController.getString("Settings", R.string.Settings), settingsIcon));
         items.add(null); // divider
         items.add(new Item(7, LocaleController.getString("InviteFriends", R.string.InviteFriends), inviteIcon));

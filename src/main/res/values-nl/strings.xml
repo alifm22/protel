@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="AppName">Telegram</string>
-    <string name="AppNameBeta">Telegram Beta</string>
+    <string name="AppName">ProTel</string>
+    <string name="AppNameBeta">ProTel</string>
     <string name="LanguageName">Nederlands</string>
     <string name="English">Engels</string>
     <string name="LanguageNameInEnglish">Dutch</string>
@@ -1096,7 +1096,7 @@
     <string name="URL">URL</string>
     <string name="MapPreviewProvider">Kaartvoorvertoning</string>
     <string name="MapPreviewProviderTitle">Kaarvoorvertoningingsleverancier</string>
-    <string name="MapPreviewProviderTelegram">Telegram</string>
+    <string name="MapPreviewProviderTelegram">ProTel</string>
     <string name="MapPreviewProviderGoogle">Google</string>
     <string name="MapPreviewProviderYandex">Yandex</string>
     <string name="MapPreviewProviderNobody">Geen</string>
@@ -1275,8 +1275,8 @@
     <string name="NotificationGroupFew">%1$s heeft %3$s naar de groep %2$s gestuurd</string>
     <string name="NotificationGroupAlbum">%1$s heeft een album naar de groep %2$s gestuurd</string>
     <string name="NotificationGroupForwardedFew">%1$s heeft %3$s naar de groep %2$s doorgestuurd</string>
-    <string name="NotificationHiddenName">Telegram</string>
-    <string name="NotificationHiddenChatName">Telegram</string>
+    <string name="NotificationHiddenName">ProTel</string>
+    <string name="NotificationHiddenChatName">ProTel</string>
     <string name="NotificationHiddenChatUserName">Gebruiker</string>
     <string name="NotificationHiddenMessage">Nieuw bericht</string>
     <string name="Reply">Antwoord</string>
@@ -1341,7 +1341,7 @@
     <string name="NotificationActionPinnedGeoLiveUser">\n%1$s zette een Live-locatie vast</string>
     <string name="NotificationActionPinnedGifUser">\n%1$s zette een GIF vast</string>
     <string name="NotificationActionPinnedMusicUser">\n%1$s zette een audiobestand vast</string>
-    <string name="SecretChatName">Telegram</string>
+    <string name="SecretChatName">ProTel</string>
     <!--contacts view-->
     <string name="SelectContact">Contact kiezen</string>
     <string name="SelectContacts">Kies contacten</string>

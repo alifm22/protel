@@ -4099,6 +4099,237 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
         }
     }
 
+    //custom change
+    public static void saveFileToFolder(String fullPath, Context context, final int type, final String name, final String mime, final Runnable onSaved) {
+        if (fullPath == null || context == null) {
+            return;
+        }
+
+        File file = null;
+        if (!TextUtils.isEmpty(fullPath)) {
+            file = new File(fullPath);
+            if (!file.exists() || AndroidUtilities.isInternalUri(Uri.fromFile(file))) {
+                file = null;
+            }
+        }
+
+        if (file == null) {
+            return;
+        }
+
+        final File sourceFile = file;
+        final boolean[] cancelled = new boolean[]{false};
+        if (sourceFile.exists()) {
+
+            AlertDialog progressDialog = null;
+            final boolean[] finished = new boolean[1];
+            if (context != null) {
+                try {
+                    final AlertDialog dialog = new AlertDialog(context, 2);
+                    dialog.setMessage(LocaleController.getString("Loading", R.string.Loading));
+                    dialog.setCanceledOnTouchOutside(false);
+                    dialog.setCancelable(true);
+                    dialog.setOnCancelListener(d -> cancelled[0] = true);
+                    AndroidUtilities.runOnUIThread(() -> {
+                        if (!finished[0]) {
+                            dialog.show();
+                        }
+                    }, 250);
+                    progressDialog = dialog;
+                } catch (Exception e) {
+                    FileLog.e(e);
+                }
+            }
+
+            final AlertDialog finalProgress = progressDialog;
+
+            new Thread(() -> {
+                try {
+
+                    boolean result = true;
+                    if (Build.VERSION.SDK_INT >= 29) {
+                        try {
+                            int selectedType = type;
+                            ContentValues contentValues = new ContentValues();
+                            String extension = MimeTypeMap.getFileExtensionFromUrl(sourceFile.getAbsolutePath());
+                            String mimeType = null;
+                            if (extension != null) {
+                                mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension);
+                            }
+                            Uri uriToInsert = null;
+
+                            if ((type == 0 || type == 1) && mimeType != null) {
+                                if (mimeType.startsWith("image")) {
+                                    selectedType = 0;
+                                }
+                                if (mimeType.startsWith("video")) {
+                                    selectedType = 1;
+                                }
+                            }
+                            if (selectedType == 0){
+                                uriToInsert = MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
+                                File dirDest = new File(Environment.DIRECTORY_PICTURES, name);
+                                contentValues.put(MediaStore.MediaColumns.RELATIVE_PATH, dirDest + File.separator);
+                                contentValues.put(MediaStore.Images.Media.DISPLAY_NAME, AndroidUtilities.generateFileName(0, extension));
+                                contentValues.put(MediaStore.Images.Media.MIME_TYPE, mimeType);
+                            }else{
+                                File dirDest = new File(Environment.DIRECTORY_MOVIES, name);
+                                contentValues.put(MediaStore.MediaColumns.RELATIVE_PATH, dirDest + File.separator);
+                                uriToInsert = MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
+                                contentValues.put(MediaStore.Video.Media.DISPLAY_NAME, AndroidUtilities.generateFileName(1, extension));
+                            }
+//                            if (selectedType == 0) { //PDB
+//                                if (mimeType != null) {
+//                                    if (mimeType.startsWith("image")) {
+//                                        uriToInsert = MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
+//                                        File dirDest = new File(Environment.DIRECTORY_PICTURES, "PDB");
+//                                        contentValues.put(MediaStore.MediaColumns.RELATIVE_PATH, dirDest + File.separator);
+//                                        contentValues.put(MediaStore.Images.Media.DISPLAY_NAME, AndroidUtilities.generateFileName(0, extension));
+//                                        contentValues.put(MediaStore.Images.Media.MIME_TYPE, mimeType);
+//                                    }
+//                                    if (mimeType.startsWith("video")) {
+//                                        File dirDest = new File(Environment.DIRECTORY_MOVIES, "PDB");
+//                                        contentValues.put(MediaStore.MediaColumns.RELATIVE_PATH, dirDest + File.separator);
+//                                        uriToInsert = MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
+//                                        contentValues.put(MediaStore.Video.Media.DISPLAY_NAME, AndroidUtilities.generateFileName(1, extension));
+//                                    }
+//                                }
+//                            } else if (selectedType == 1) {//SDB
+
+
+                            contentValues.put(MediaStore.MediaColumns.MIME_TYPE, mimeType);
+
+                            Uri dstUri = context.getContentResolver().insert(uriToInsert, contentValues);
+                            if (dstUri != null) {
+                                FileInputStream fileInputStream = new FileInputStream(sourceFile);
+                                OutputStream outputStream = context.getContentResolver().openOutputStream(dstUri);
+                                AndroidUtilities.copyFile(fileInputStream, outputStream);
+                                fileInputStream.close();
+                            }
+                        } catch (Exception e) {
+                            FileLog.e(e);
+                            result = false;
+                        }
+                    } else {
+                        File destFile;
+                        if (type == 0) {
+                            destFile = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "Telegram");
+                            destFile.mkdirs();
+                            destFile = new File(destFile, AndroidUtilities.generateFileName(0, FileLoader.getFileExtension(sourceFile)));
+                        } else if (type == 1) {
+                            destFile = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES), "Telegram");
+                            destFile.mkdirs();
+                            destFile = new File(destFile, AndroidUtilities.generateFileName(1, FileLoader.getFileExtension(sourceFile)));
+                        } else {
+                            File dir;
+                            if (type == 2) {
+                                dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+                            } else {
+                                dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC);
+                            }
+                            dir = new File(dir, "Telegram");
+                            dir.mkdirs();
+                            destFile = new File(dir, name);
+                            if (destFile.exists()) {
+                                int idx = name.lastIndexOf('.');
+                                for (int a = 0; a < 10; a++) {
+                                    String newName;
+                                    if (idx != -1) {
+                                        newName = name.substring(0, idx) + "(" + (a + 1) + ")" + name.substring(idx);
+                                    } else {
+                                        newName = name + "(" + (a + 1) + ")";
+                                    }
+                                    destFile = new File(dir, newName);
+                                    if (!destFile.exists()) {
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        if (!destFile.exists()) {
+                            destFile.createNewFile();
+                        }
+                        long lastProgress = System.currentTimeMillis() - 500;
+                        try (FileInputStream inputStream = new FileInputStream(sourceFile); FileChannel source = inputStream.getChannel(); FileChannel destination = new FileOutputStream(destFile).getChannel()) {
+                            long size = source.size();
+                            try {
+                                @SuppressLint("DiscouragedPrivateApi") Method getInt = FileDescriptor.class.getDeclaredMethod("getInt$");
+                                int fdint = (Integer) getInt.invoke(inputStream.getFD());
+                                if (AndroidUtilities.isInternalUri(fdint)) {
+                                    if (finalProgress != null) {
+                                        AndroidUtilities.runOnUIThread(() -> {
+                                            try {
+                                                finalProgress.dismiss();
+                                            } catch (Exception e) {
+                                                FileLog.e(e);
+                                            }
+                                        });
+                                    }
+                                    return;
+                                }
+                            } catch (Throwable e) {
+                                FileLog.e(e);
+                            }
+                            for (long a = 0; a < size; a += 4096) {
+                                if (cancelled[0]) {
+                                    break;
+                                }
+                                destination.transferFrom(source, a, Math.min(4096, size - a));
+                                if (finalProgress != null) {
+                                    if (lastProgress <= System.currentTimeMillis() - 500) {
+                                        lastProgress = System.currentTimeMillis();
+                                        final int progress = (int) ((float) a / (float) size * 100);
+                                        AndroidUtilities.runOnUIThread(() -> {
+                                            try {
+                                                finalProgress.setProgress(progress);
+                                            } catch (Exception e) {
+                                                FileLog.e(e);
+                                            }
+                                        });
+                                    }
+                                }
+                            }
+                        } catch (Exception e) {
+                            FileLog.e(e);
+                            result = false;
+                        }
+                        if (cancelled[0]) {
+                            destFile.delete();
+                            result = false;
+                        }
+                        if (result) {
+                            if (type == 2) {
+                                DownloadManager downloadManager = (DownloadManager) ApplicationLoader.applicationContext.getSystemService(Context.DOWNLOAD_SERVICE);
+                                downloadManager.addCompletedDownload(destFile.getName(), destFile.getName(), false, mime, destFile.getAbsolutePath(), destFile.length(), true);
+                            } else {
+                                AndroidUtilities.addMediaToGallery(destFile.getAbsoluteFile());
+                            }
+                        }
+                    }
+                    if (result && onSaved != null) {
+                        AndroidUtilities.runOnUIThread(onSaved);
+                    }
+                } catch (Exception e) {
+                    FileLog.e(e);
+                }
+                if (finalProgress != null) {
+                    AndroidUtilities.runOnUIThread(() -> {
+                        try {
+                            if (finalProgress.isShowing()) {
+                                finalProgress.dismiss();
+                            } else {
+                                finished[0] = true;
+                            }
+                        } catch (Exception e) {
+                            FileLog.e(e);
+                        }
+                    });
+                }
+            }).start();
+        }
+    }
+    //end custom change
+
     public static String getStickerExt(Uri uri) {
         InputStream inputStream = null;
         try {

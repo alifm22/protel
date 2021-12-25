@@ -1,16 +1,16 @@
 {
   "project_info": {
     "project_number": "828978196175",
-    "firebase_url": "https://tmessages2.firebaseio.com",
+    "firebase_url": "https://protel-60eb2-default-rtdb.asia-southeast1.firebasedatabase.app",
     "project_id": "protel-60eb2",
     "storage_bucket": "protel-60eb2.appspot.com"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:828978196175:android:18a49068825cb18f7d11ba",
+        "mobilesdk_app_id": "1:828978196175:android:a77e1de2f7f663d77d11ba",
         "android_client_info": {
-          "package_name": "org.telegram.messanger"
+          "package_name": "org.telegram.messenger"
         }
       },
       "oauth_client": [

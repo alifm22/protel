@@ -8,6 +8,8 @@
 
 package org.telegram.ui;
 
+import static org.webrtc.ContextUtils.getApplicationContext;
+
 import android.Manifest;
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
@@ -45,6 +47,7 @@ import android.media.MediaCodecInfo;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.SystemClock;
 import android.os.Vibrator;
 import android.provider.Settings;
@@ -67,6 +70,7 @@ import androidx.recyclerview.widget.LinearSmoothScrollerEnd;
 import androidx.recyclerview.widget.RecyclerView;
 
 import android.text.Editable;
+import android.text.InputType;
 import android.text.Layout;
 import android.text.Selection;
 import android.text.Spannable;
@@ -90,6 +94,7 @@ import android.util.FloatProperty;
 import android.util.Property;
 import android.util.Range;
 import android.util.SparseArray;
+import android.util.SparseBooleanArray;
 import android.util.TypedValue;
 import android.view.ActionMode;
 import android.view.ContextThemeWrapper;
@@ -114,9 +119,13 @@ import android.view.animation.DecelerateInterpolator;
 import android.view.animation.Interpolator;
 import android.view.animation.LinearInterpolator;
 import android.view.animation.OvershootInterpolator;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
+import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.ListView;
 import android.widget.OverScroller;
 import android.widget.Scroller;
 import android.widget.TextView;
@@ -130,7 +139,15 @@ import com.google.android.exoplayer2.util.Log;
 import com.google.android.gms.vision.Frame;
 import com.google.android.gms.vision.face.Face;
 import com.google.android.gms.vision.face.FaceDetector;
+import com.loopj.android.http.AsyncHttpClient;
+import com.loopj.android.http.AsyncHttpResponseHandler;
+import com.loopj.android.http.JsonHttpResponseHandler;
+import com.loopj.android.http.RequestParams;
+import com.loopj.android.http.TextHttpResponseHandler;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.Bitmaps;
 import org.telegram.messenger.BringAppForegroundService;
@@ -246,6 +263,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import cz.msebera.android.httpclient.Header;
 
 @SuppressWarnings("unchecked")
 public class PhotoViewer implements NotificationCenter.NotificationCenterDelegate, GestureDetector2.OnGestureListener, GestureDetector2.OnDoubleTapListener {
@@ -297,8 +318,15 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
     private TextView docInfoTextView;
     private ActionBarMenuItem menuItem;
     private ActionBarMenuItem menuItemSpeed;
+    //custom changes
+    private ActionBarMenuItem menuItemSaveToFolder;
+    //end custom changing
     private ActionBarMenuSubItem allMediaItem;
     private ActionBarMenuSubItem speedItem;
+    //custom changes
+    private ActionBarMenuSubItem saveToFolderItem;
+    private ActionBarMenuSubItem[] saveToFolderItems = new ActionBarMenuSubItem[15];
+    //end custom changing
     private ActionBarMenuSubItem[] speedItems = new ActionBarMenuSubItem[5];
     private View speedGap;
     private ActionBarMenuItem sendItem;
@@ -339,6 +367,10 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
     private boolean isCurrentVideo;
 
     private float currentVideoSpeed;
+
+    //custom changes
+    private int currentFileType;
+    //end custom changes
 
     private long lastPhotoSetTime;
 
@@ -497,6 +529,8 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
     public final static int SELECT_TYPE_AVATAR = 1;
     public final static int SELECT_TYPE_WALLPAPER = 3;
     public final static int SELECT_TYPE_QR = 10;
+
+
 
     VideoPlayerRewinder videoPlayerRewinder = new VideoPlayerRewinder() {
         @Override
@@ -1206,6 +1240,23 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
     private final static int gallery_menu_speed_normal = 23;
     private final static int gallery_menu_speed_fast = 24;
     private final static int gallery_menu_speed_veryfast = 25;
+    //custom changes
+    private ArrayList<String> folderList = new ArrayList<>();
+    private String inputFolderName = null;
+    private final static int gallery_menu_save_folder = 50;
+    private final static int gallery_menu_save_item = 51;
+//    private final static int gallery_menu_save_sdb = 52;
+//    private final static int gallery_menu_save_cdb = 53;
+//    private final static int gallery_menu_save_vdb = 54;
+//    private final static int gallery_menu_save_fdb = 55;
+//    private final static int gallery_menu_save_idb = 56;
+//    private final static int gallery_menu_save_rdb = 57;
+//    private final static int gallery_menu_save_ndb = 58;
+//    private final static int gallery_menu_save_adb = 59;
+//    private final static int gallery_menu_save_ddb = 60;
+//    private final static int gallery_menu_save_mdb = 61;
+//    private final static int gallery_menu_save_gdb = 62;
+    //end custom changes
 
     private static DecelerateInterpolator decelerateInterpolator;
     private static Paint progressPaint;
@@ -3011,6 +3062,8 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
 
     public PhotoViewer() {
         blackPaint.setColor(0xff000000);
+        if (folderList.size() == 0)
+            fetchFolders();
     }
 
     @SuppressWarnings("unchecked")
@@ -3513,6 +3566,126 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
     public void setParentActivity(final Activity activity) {
         setParentActivity(activity, null);
     }
+
+
+    //custom changes
+    public void saveToFolder(String name){
+        if (Build.VERSION.SDK_INT >= 23 && (Build.VERSION.SDK_INT <= 28 || BuildVars.NO_SCOPED_STORAGE) && parentActivity.checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+            parentActivity.requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, 4);
+            return;
+        }
+
+        File f = null;
+        final boolean isVideo;
+        if (currentMessageObject != null) {
+            if (currentMessageObject.messageOwner.media instanceof TLRPC.TL_messageMediaWebPage && currentMessageObject.messageOwner.media.webpage != null && currentMessageObject.messageOwner.media.webpage.document == null) {
+                TLObject fileLocation = getFileLocation(currentIndex, null);
+                f = FileLoader.getPathToAttach(fileLocation, true);
+            } else {
+                f = FileLoader.getPathToMessage(currentMessageObject.messageOwner);
+            }
+            isVideo = currentMessageObject.isVideo();
+        } else if (currentFileLocationVideo != null) {
+            f = FileLoader.getPathToAttach(getFileLocation(currentFileLocationVideo), getFileLocationExt(currentFileLocationVideo), avatarsDialogId != 0 || isEvent);
+            isVideo = false;
+        } else if (pageBlocksAdapter != null) {
+            f = pageBlocksAdapter.getFile(currentIndex);
+            isVideo = pageBlocksAdapter.isVideo(currentIndex);
+        } else {
+            isVideo = false;
+        }
+        if (f != null && f.exists()) {
+            MediaController.saveFileToFolder(f.toString(), parentActivity, isVideo ? 1: 0, name, null, () -> BulletinFactory.createSaveToGalleryBulletin(containerView, isVideo, 0xf9222222, 0xffffffff).show());
+        } else {
+            showDownloadAlert();
+        }
+    }
+
+    public void addFolderItems(int status,String folders){
+        folderList.clear();
+        menuItemSaveToFolder.removeAllSubItems();
+        Pattern pattern = Pattern.compile("\'(.*?)\'", Pattern.DOTALL);
+        Matcher matcher = pattern.matcher(folders);
+        saveToFolderItems = new ActionBarMenuSubItem[15];
+        while (matcher.find()) {
+            folderList.add(matcher.group(1));
+        }
+        for(int idx = 0 ; idx < folderList.size();idx++){
+            saveToFolderItems[idx] = menuItemSaveToFolder.addSubItem(gallery_menu_save_item+idx, R.drawable.files_folder,folderList.get(idx)).setColors(0xfffafafa, 0xfffafafa);
+        }
+        saveToFolderItems[folderList.size()] = menuItemSaveToFolder.addSubItem(gallery_menu_save_item+folderList.size(), R.drawable.menu_add,"Add Folder").setColors(0xfffafafa, 0xfffafafa);
+        saveToFolderItems[folderList.size()+1] = menuItemSaveToFolder.addSubItem(gallery_menu_save_item+folderList.size()+1, R.drawable.ic_ab_delete,"Delete Folders").setColors(0xfffafafa, 0xfffafafa);
+    }
+    public void fetchFolders(){
+        UserConfig userConfig = UserConfig.getInstance(currentAccount);
+        long userId = userConfig.getClientUserId();
+        AsyncHttpClient client = new AsyncHttpClient();
+        RequestParams params = new RequestParams();
+        client.get("https://alifm33.pythonanywhere.com/read_folder/"+String.valueOf(userId), params, new TextHttpResponseHandler() {
+                    @Override
+                    public void onFailure(int statusCode, Header[] headers, String responseString, Throwable throwable) {
+                        System.out.print("fail");
+                    }
+
+                    @Override
+                    public void onSuccess(int statusCode, Header[] headers, String responseString) {
+                        System.out.print("success");
+                        addFolderItems(statusCode,responseString);
+                    }
+//
+                }
+        );
+    }
+    public void writeFolder(String name){
+        UserConfig userConfig = UserConfig.getInstance(currentAccount);
+        long userId = userConfig.getClientUserId();
+        AsyncHttpClient client = new AsyncHttpClient();
+        RequestParams params = new RequestParams();
+        client.get("https://alifm33.pythonanywhere.com/insert_folder/"+String.valueOf(userId)+"/"+name, params, new TextHttpResponseHandler() {
+                    @Override
+                    public void onFailure(int statusCode, Header[] headers, String responseString, Throwable throwable) {
+                        BulletinFactory.createCustomErrorBulletin(containerView,"Creating Folder Failed").show();
+                    }
+
+                    @Override
+                    public void onSuccess(int statusCode, Header[] headers, String responseString) {
+//                        Toast.makeText(parentActivity,"Folder Created Successfully!",Toast.LENGTH_SHORT).show();
+
+                        BulletinFactory.createSaveToFolderBulletin(containerView,true,0xf9222222, 0xffffffff).show();
+                        fetchFolders();
+                    }
+//
+                }
+        );
+    }
+    public void delFolder(ArrayList<String> names){
+        UserConfig userConfig = UserConfig.getInstance(currentAccount);
+        long userId = userConfig.getClientUserId();
+        AsyncHttpClient client = new AsyncHttpClient();
+        RequestParams params = new RequestParams();
+        String folders = "";
+        for (int i=0;i<names.size();i++)
+            if(i == names.size() - 1)
+                folders += names.get(i);
+            else
+                folders += names.get(i) + "@";
+        client.get("https://alifm33.pythonanywhere.com/delete_folder/"+String.valueOf(userId)+"/"+folders, params, new TextHttpResponseHandler() {
+                    @Override
+                    public void onFailure(int statusCode, Header[] headers, String responseString, Throwable throwable) {
+                        BulletinFactory.createCustomErrorBulletin(containerView,"Deleting Folder Failed!").show();
+                    }
+
+                    @Override
+                    public void onSuccess(int statusCode, Header[] headers, String responseString) {
+                        BulletinFactory.createSaveToFolderBulletin(containerView, false,0xf9222222, 0xffffffff).show();
+                        fetchFolders();
+                    }
+//
+                }
+        );
+    }
+    //end custom changes
+
 
     public void setParentActivity(final Activity activity, Theme.ResourcesProvider resourcesProvider) {
         Theme.createChatResources(activity, false);
@@ -4346,12 +4519,19 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                         thumb = null;
                     }
                     placeProvider.openPhotoForEdit(f.getAbsolutePath(), thumb, isVideo);
+                    //custom changes
+                } else if (id == gallery_menu_save_folder){
+                    menuItemSaveToFolder.setVisibility(View.VISIBLE);
+                    menuItemSaveToFolder.toggleSubMenu();
+
                 }
+                //end custom changes
             }
 
             @Override
             public boolean canOpenMenu() {
                 menuItemSpeed.setVisibility(View.INVISIBLE);
+                menuItemSaveToFolder.setVisibility(View.INVISIBLE);
                 if (currentMessageObject != null || currentSecureDocument != null) {
                     return true;
                 } else if (currentFileLocationVideo != null) {
@@ -4414,6 +4594,201 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                 menuItemSpeed.setVisibility(View.INVISIBLE);
             }
         });
+        //custom changes
+        menuItemSaveToFolder = new ActionBarMenuItem(parentActivity, null, 0, 0, resourcesProvider);
+        menuItemSaveToFolder.setDelegate(id -> {
+
+            if (id >= gallery_menu_save_item && id <= gallery_menu_save_item+folderList.size()+1) {
+                if(id <gallery_menu_save_item+folderList.size())
+                    saveToFolder(folderList.get(id-gallery_menu_save_item));
+                else if(id == gallery_menu_save_item+folderList.size()){
+                    AlertDialog.Builder builder = new AlertDialog.Builder(parentActivity);
+                    builder.setTitle(LocaleController.getString("InputFolderTitle", R.string.InputFolderTitle));
+                    final EditText input = new EditText(parentActivity);
+                    if(Theme.isCurrentThemeNight())
+                        input.setTextColor(Color.WHITE);
+                    else
+                        input.setTextColor(Color.BLACK);
+                    input.setInputType(InputType.TYPE_CLASS_TEXT);
+                    input.setPadding(20,0,20,10);
+                    builder.setView(input);
+                    builder.setPositiveButton("Add", new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+                            inputFolderName = input.getText().toString();
+                            boolean folderExists = false;
+                            for(int i=0;i<folderList.size();i++)
+                                if(inputFolderName.equalsIgnoreCase(folderList.get(i))){
+                                    folderExists = true;
+                                    break;
+                                }
+                            if(folderList.size() > 12){
+                                BulletinFactory.createCustomErrorBulletin(containerView,"No More Space for New Folder!").show();
+                            }else if(folderExists){
+                                BulletinFactory.createCustomErrorBulletin(containerView,"Folder Name Already Exists!").show();
+                            }else if(inputFolderName.contains("@")){
+                                BulletinFactory.createCustomErrorBulletin(containerView,"Can't Use '@' in Folder Name!").show();
+                            }else{
+                                writeFolder(inputFolderName);
+                            }
+                        }
+                    });
+                    builder.setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+                            dialog.cancel();
+                        }
+                    });
+                    builder.show();
+                }else if(id == gallery_menu_save_item+folderList.size()+1){
+                    AlertDialog.Builder builder = new AlertDialog.Builder(parentActivity);
+                    builder.setTitle(LocaleController.getString("DeleteFolderTitle", R.string.DeleteFolderTitle));
+                    ListView lView;
+
+                    String items[] = new String[folderList.size()];
+                    for(int i=0;i<folderList.size();i++)
+                        items[i] = folderList.get(i);
+                    lView = new ListView(parentActivity);
+                    ArrayAdapter<String> arrayAdapter = new ArrayAdapter<String>(parentActivity,
+                            android.R.layout.simple_list_item_multiple_choice, items)
+                            {
+                      @Override
+                      public View getView(int position, View convertView,ViewGroup parent){
+                          View view = super.getView(position,convertView,parent);
+                          TextView textView = (TextView) view.findViewById(android.R.id.text1);
+                          if(Theme.isCurrentThemeNight())
+                              textView.setTextColor(Color.WHITE);
+                          else
+                              textView.setTextColor(Color.BLACK);
+                          return view;
+                      }
+                    };
+                    lView.setAdapter(arrayAdapter);
+                    lView.setChoiceMode(ListView.CHOICE_MODE_MULTIPLE);
+                    lView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+
+                        public void onItemClick(AdapterView arg0, View arg1, int arg2,long arg3)
+                        {
+                            SparseBooleanArray newSelected = lView.getCheckedItemPositions();
+
+                        }
+                    });
+                    int height = 350;
+                    if(folderList.size() == 1)
+                        height = 100;
+                    else if (folderList.size() == 2)
+                        height = 150;
+                    else if(folderList.size() == 3)
+                        height = 200;
+                    else if(folderList.size() == 4)
+                        height = 250;
+                    lView.setMinimumHeight(height);
+                    builder.setView(lView,height);
+                    builder.setPositiveButton("Delete", new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+                            ArrayList<String> toBeDeleted = new ArrayList<String>();
+                            SparseBooleanArray selectedItems = lView.getCheckedItemPositions();
+                            for(int i=0;i<folderList.size();i++)
+                                if(selectedItems.get(i)){
+                                    toBeDeleted.add(folderList.get(i));
+                                }
+                            if(toBeDeleted.size() == 0){
+                                BulletinFactory.createCustomErrorBulletin(containerView,"No Folder(s) Selected!").show();
+                            }else{
+                                delFolder(toBeDeleted);
+                            }
+                        }
+                    });
+                    builder.setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+                            dialog.cancel();
+                        }
+                    });
+                    AlertDialog dialog = builder.create();
+                    dialog.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+                    dialog.show();
+//                    WindowManager.LayoutParams lp = new WindowManager.LayoutParams();
+//                    lp.copyFrom(dialog.getWindow().getAttributes());
+//                    lp.height = 400;
+//                    dialog.getWindow().setAttributes(lp);
+
+//                    WindowManager.LayoutParams lp = new WindowManager.LayoutParams();
+//                    lp.copyFrom(dialog.getWindow().getAttributes());
+//                    lp.height = 500;
+//                    lp.width = 150;
+//                    lp.x = -170;
+//                    lp.y = 100;
+//                    dialog.getWindow().setAttributes(lp);
+                }
+//                switch (id) {
+//                    case gallery_menu_save_pdb:
+//                        saveToFolder(0);
+//                        break;
+//                    case gallery_menu_save_sdb:
+//                        saveToFolder(1);
+//                        break;
+//                    case gallery_menu_save_cdb:
+//                        saveToFolder(2);
+//                        break;
+//                    case gallery_menu_save_vdb:
+//                        saveToFolder(3);
+//                        break;
+//                    case gallery_menu_save_fdb:
+//                        saveToFolder(4);
+//                        break;
+//                    case gallery_menu_save_idb:
+//                        saveToFolder(5);
+//                        break;
+//                    case gallery_menu_save_rdb:
+//                        saveToFolder(6);
+//                        break;
+//                    case gallery_menu_save_adb:
+//                        saveToFolder(7);
+//                        break;
+//                    case gallery_menu_save_ndb:
+//                        saveToFolder(8);
+//                        break;
+//                    case gallery_menu_save_ddb:
+//                        saveToFolder(9);
+//                        break;
+//                    case gallery_menu_save_mdb:
+//                        saveToFolder(10);
+//                        break;
+//                    case gallery_menu_save_gdb:
+//                        saveToFolder(11);
+//                        break;
+//                }
+//                if (currentMessageObject != null) {
+//                    SharedPreferences preferences = ApplicationLoader.applicationContext.getSharedPreferences("playback_speed", Activity.MODE_PRIVATE);
+//                    if (Math.abs(currentVideoSpeed - 1.0f) < 0.001f) {
+//                        preferences.edit().remove("speed" + currentMessageObject.getDialogId() + "_" + currentMessageObject.getId()).commit();
+//                    } else {
+//                        preferences.edit().putFloat("speed" + currentMessageObject.getDialogId() + "_" + currentMessageObject.getId(), currentVideoSpeed).commit();
+//                    }
+//                }
+//                if (videoPlayer != null) {
+//                    videoPlayer.setPlaybackSpeed(currentVideoSpeed);
+//                }
+//                if (photoViewerWebView != null) {
+//                    photoViewerWebView.setPlaybackSpeed(currentVideoSpeed);
+//                }
+                setMenuItemIcon();
+                menuItemSaveToFolder.setVisibility(View.INVISIBLE);
+            }
+        });
+
+        menuItem.addView(menuItemSaveToFolder);
+        menuItemSaveToFolder.setVisibility(View.INVISIBLE);
+        saveToFolderItem = menuItem.addSubItem(gallery_menu_save_folder, R.drawable.menu_data, null, LocaleController.getString("SaveToFolder", R.string.SaveToFolder), true, false);
+//        speedItem.setSubtext(LocaleController.getString("SpeedNormal", R.string.SpeedNormal));
+        saveToFolderItem.setItemHeight(56);
+        saveToFolderItem.setTag(R.id.width_tag, 240);
+        saveToFolderItem.setColors(0xfffafafa, 0xfffafafa);
+        saveToFolderItem.setRightIcon(R.drawable.msg_arrowright);
+//        speedGap = menuItem.addGap(gallery_menu_gap);
+        //end custom changes
         menuItem.addView(menuItemSpeed);
         menuItemSpeed.setVisibility(View.INVISIBLE);
 
@@ -4432,6 +4807,25 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
         speedItems[3] = menuItemSpeed.addSubItem(gallery_menu_speed_fast, R.drawable.msg_speed_1_5, LocaleController.getString("SpeedFast", R.string.SpeedFast)).setColors(0xfffafafa, 0xfffafafa);
         speedItems[4] = menuItemSpeed.addSubItem(gallery_menu_speed_veryfast, R.drawable.msg_speed_2, LocaleController.getString("SpeedVeryFast", R.string.SpeedVeryFast)).setColors(0xfffafafa, 0xfffafafa);
 
+
+        //custom changes
+        saveToFolderItems[folderList.size()] = menuItemSaveToFolder.addSubItem(gallery_menu_save_item+folderList.size(), R.drawable.menu_add,"Add Folder").setColors(0xfffafafa, 0xfffafafa);
+        saveToFolderItems[folderList.size()+1] = menuItemSaveToFolder.addSubItem(gallery_menu_save_item+folderList.size()+1, R.drawable.ic_ab_delete,"Delete Folders").setColors(0xfffafafa, 0xfffafafa);
+
+        //custom changes
+//        saveToFolderItems[0] = menuItemSaveToFolder.addSubItem(gallery_menu_save_pdb, R.drawable.msg_gallery,LocaleController.getString("SaveToPdb", R.string.SaveToPdb)).setColors(0xfffafafa, 0xfffafafa);
+//        saveToFolderItems[1] = menuItemSaveToFolder.addSubItem(gallery_menu_save_sdb,R.drawable.msg_gallery,LocaleController.getString("SaveToSdb", R.string.SaveToSdb)).setColors(0xfffafafa, 0xfffafafa);
+//        saveToFolderItems[2] = menuItemSaveToFolder.addSubItem(gallery_menu_save_cdb,R.drawable.msg_gallery,LocaleController.getString("SaveToCdb", R.string.SaveToCdb)).setColors(0xfffafafa, 0xfffafafa);
+//        saveToFolderItems[3] = menuItemSaveToFolder.addSubItem(gallery_menu_save_vdb,R.drawable.msg_gallery,LocaleController.getString("SaveToVdb", R.string.SaveToVdb)).setColors(0xfffafafa, 0xfffafafa);
+//        saveToFolderItems[4] = menuItemSaveToFolder.addSubItem(gallery_menu_save_fdb,R.drawable.msg_gallery,LocaleController.getString("SaveToFdb", R.string.SaveToFdb)).setColors(0xfffafafa, 0xfffafafa);
+//        saveToFolderItems[5] = menuItemSaveToFolder.addSubItem(gallery_menu_save_idb,R.drawable.msg_gallery,LocaleController.getString("SaveToIdb", R.string.SaveToIdb)).setColors(0xfffafafa, 0xfffafafa);
+//        saveToFolderItems[6] = menuItemSaveToFolder.addSubItem(gallery_menu_save_rdb,R.drawable.msg_gallery,LocaleController.getString("SaveToRdb", R.string.SaveToRdb)).setColors(0xfffafafa, 0xfffafafa);
+//        saveToFolderItems[7] = menuItemSaveToFolder.addSubItem(gallery_menu_save_adb,R.drawable.msg_gallery,LocaleController.getString("SaveToAdb", R.string.SaveToAdb)).setColors(0xfffafafa, 0xfffafafa);
+//        saveToFolderItems[8] = menuItemSaveToFolder.addSubItem(gallery_menu_save_ndb,R.drawable.msg_gallery,LocaleController.getString("SaveToNdb", R.string.SaveToNdb)).setColors(0xfffafafa, 0xfffafafa);
+//        saveToFolderItems[9] = menuItemSaveToFolder.addSubItem(gallery_menu_save_ddb,R.drawable.msg_gallery,LocaleController.getString("SaveToDdb", R.string.SaveToDdb)).setColors(0xfffafafa, 0xfffafafa);
+//        saveToFolderItems[10] = menuItemSaveToFolder.addSubItem(gallery_menu_save_mdb,R.drawable.msg_gallery,LocaleController.getString("SaveToMdb", R.string.SaveToMdb)).setColors(0xfffafafa, 0xfffafafa);
+//        saveToFolderItems[11] = menuItemSaveToFolder.addSubItem(gallery_menu_save_gdb,R.drawable.msg_gallery,LocaleController.getString("SaveToGdb", R.string.SaveToGdb)).setColors(0xfffafafa, 0xfffafafa);
+        //end custom changes
         menuItem.addSubItem(gallery_menu_openin, R.drawable.msg_openin, LocaleController.getString("OpenInExternalApp", R.string.OpenInExternalApp)).setColors(0xfffafafa, 0xfffafafa);
         menuItem.setContentDescription(LocaleController.getString("AccDescrMoreOptions", R.string.AccDescrMoreOptions));
         allMediaItem = menuItem.addSubItem(gallery_menu_showall, R.drawable.msg_media, LocaleController.getString("ShowAllMedia", R.string.ShowAllMedia));
@@ -4441,12 +4835,14 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
         menuItem.addSubItem(gallery_menu_masks2, R.drawable.msg_sticker, LocaleController.getString("ShowStickers", R.string.ShowStickers)).setColors(0xfffafafa, 0xfffafafa);
         menuItem.addSubItem(gallery_menu_share, R.drawable.msg_shareout, LocaleController.getString("ShareFile", R.string.ShareFile)).setColors(0xfffafafa, 0xfffafafa);
         menuItem.addSubItem(gallery_menu_save, R.drawable.msg_gallery, LocaleController.getString("SaveToGallery", R.string.SaveToGallery)).setColors(0xfffafafa, 0xfffafafa);
-        //menuItem.addSubItem(gallery_menu_edit_avatar, R.drawable.photo_paint, LocaleController.getString("EditPhoto", R.string.EditPhoto)).setColors(0xfffafafa, 0xfffafafa);
+//        menuItem.addSubItem(gallery_menu_save, R.drawable.msg_gallery, LocaleController.getString("SaveToFolder", R.string.SaveToFolder)).setColors(0xfffafafa, 0xfffafafa);
+//        menuItem.addSubItem(gallery_menu_edit_avatar, R.drawable.photo_paint, LocaleController.getString("EditPhoto", R.string.EditPhoto)).setColors(0xfffafafa, 0xfffafafa);
         menuItem.addSubItem(gallery_menu_set_as_main, R.drawable.menu_private, LocaleController.getString("SetAsMain", R.string.SetAsMain)).setColors(0xfffafafa, 0xfffafafa);
         menuItem.addSubItem(gallery_menu_delete, R.drawable.msg_delete, LocaleController.getString("Delete", R.string.Delete)).setColors(0xfffafafa, 0xfffafafa);
         menuItem.addSubItem(gallery_menu_cancel_loading, R.drawable.msg_cancel, LocaleController.getString("StopDownload", R.string.StopDownload)).setColors(0xfffafafa, 0xfffafafa);
         menuItem.redrawPopup(0xf9222222);
         menuItemSpeed.redrawPopup(0xf9222222);
+        menuItemSaveToFolder.redrawPopup(0xf9222222);
         setMenuItemIcon();
 
         menuItem.setSubMenuDelegate(new ActionBarMenuItem.ActionBarSubMenuItemDelegate() {

@@ -576,7 +576,12 @@ public class LaunchActivity extends Activity implements ActionBarLayout.ActionBa
                 } else if (id == 6) {
                     presentFragment(new ContactsActivity(null));
                     drawerLayoutContainer.closeDrawer(false);
-                } else if (id == 7) {
+                }//custom changes
+                else if (id == 50){
+                    presentFragment(new MusicPlayerActivity(null));
+                    drawerLayoutContainer.closeDrawer(false);
+                }
+                else if (id == 7) {
                     presentFragment(new InviteContactsActivity());
                     drawerLayoutContainer.closeDrawer(false);
                 } else if (id == 8) {

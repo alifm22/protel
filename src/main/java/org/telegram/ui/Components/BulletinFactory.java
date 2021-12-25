@@ -49,7 +49,9 @@ public final class BulletinFactory {
         AUDIOS("AudiosSavedHint", Icon.SAVED_TO_MUSIC),
 
         UNKNOWN("FileSavedHint", R.string.FileSavedHint, Icon.SAVED_TO_DOWNLOADS),
-        UNKNOWNS("FilesSavedHint", Icon.SAVED_TO_DOWNLOADS);
+        UNKNOWNS("FilesSavedHint", Icon.SAVED_TO_DOWNLOADS),
+        FOLDER("FolderSavedHint", Icon.SAVED_TO_FOLDER),
+        FOLDERD("FolderDeleteHint", Icon.DELETE_FOLDER);
 
         private final String localeKey;
         private final int localeRes;
@@ -75,6 +77,11 @@ public final class BulletinFactory {
         }
 
         private String getText(int amount) {
+            if( amount == 100){
+                return "Folder Created Successfully!";
+            }else if (amount == 101){
+                return "Folder(s) Deleted Successfully!";
+            }
             if (plural) {
                 return LocaleController.formatPluralString(localeKey, amount);
             } else {
@@ -86,8 +93,10 @@ public final class BulletinFactory {
 
             SAVED_TO_DOWNLOADS(R.raw.ic_download, 2, "Box", "Arrow"),
             SAVED_TO_GALLERY(R.raw.ic_save_to_gallery, 0, "Box", "Arrow", "Mask", "Arrow 2", "Splash"),
-            SAVED_TO_MUSIC(R.raw.ic_save_to_music, 2, "Box", "Arrow");
-
+            SAVED_TO_MUSIC(R.raw.ic_save_to_music, 2, "Box", "Arrow"),
+            SAVED_TO_FOLDER(R.raw.folder_in,2,"Box", "Arrow"),
+            DELETE_FOLDER(R.raw.folder_out,2,"Box", "Arrow");
+            //custom changes
             private final int resId;
             private final String[] layers;
             private final int paddingBottom;
@@ -318,7 +327,23 @@ public final class BulletinFactory {
     public static Bulletin createSaveToGalleryBulletin(FrameLayout containerLayout, boolean video, int backgroundColor, int textColor) {
         return of(containerLayout, null).createDownloadBulletin(video ? FileType.VIDEO : FileType.PHOTO, 1, backgroundColor, textColor);
     }
+    //custom changes
 
+    @CheckResult
+    public static Bulletin createSaveToFolderBulletin(FrameLayout containerLayout,boolean act, int backgroundColor, int textColor) {
+        if(act){//add
+            return of(containerLayout, null).createDownloadBulletin(FileType.FOLDER, 100, backgroundColor, textColor);
+        }else{//delete
+            return of(containerLayout, null).createDownloadBulletin(FileType.FOLDERD, 101, backgroundColor, textColor);
+        }
+
+    }
+
+    @CheckResult
+    public static Bulletin createCustomErrorBulletin(FrameLayout containerLayout,String message){
+        return of(containerLayout, null).createErrorBulletin(message);
+    }
+    //end custom changes
     @CheckResult
     public static Bulletin createPromoteToAdminBulletin(BaseFragment fragment, String userFirstName) {
         final Bulletin.LottieLayout layout = new Bulletin.LottieLayout(fragment.getParentActivity(), null);
